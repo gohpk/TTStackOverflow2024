@@ -1,0 +1,325 @@
+---
+title: "**A Glimpse Into The 2024 Stack Overflow Survey: Insights and Analysis**"
+author: "**Authors:** Peng Kerng, Jaye, Rachel, Caleb, Kangze"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+---
+
+<style>
+#TOC {
+  color: #1a4b93;
+  background-color: #fbe8d7;
+  border-color: #f19d42;
+  border-width: medium;
+}
+
+body {
+  color: #1a4b93;
+  background-color: #fbe8d7;
+  font-family: "Helvetica";
+}
+
+pre {
+  color: #0c5949;
+  background-color: #fffdf7; 
+  border-color: #0c5949;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, include = TRUE,
+                      fig.align = "center",  out.width = "80%")
+```
+
+### **Section 1: Introduction and Question of Interest**
+The dataset we are exploring is the **Stack Overflow Annual Developer Survey** conducted in May 2024. The original survey asked 65 437 developers over 60 questions (Berkay, 2024). This dataset, however, only contains data from single-response questions regarding 28 different variables including `response_id` (Khurana and Harmon, 2024). There are seven key sections of variables gathered through the survey:
+<br>
+
+- Basic Information (such as **Age** and **Employment**)
+- Education, Work and Career
+- Tech and Tech Culture
+- Stack Overflow Community
+- Artificial Intelligence (AI)
+- Professional Developer Series (not part of the main survey)
+- Thoughts on Survey
+
+The dataset we used focuses on the main survey and does not contain responses pertaining to Professional Developer Series.
+<br>
+
+Here is our question of interest regarding the dataset:
+<br>
+
+**"What attributes distinguish professional developers from non-professional ones?"**
+<br>
+
+We are investigating differences between professionalism levels by identifying varying attributes within each level.
+<br>
+
+Potential factors we have identified that we will explore in our analysis include:
+<br>
+
+- Years of Coding
+- Education Level
+- Developer's Perceptions of How Much AI is a Threat to Their Jobs
+
+<br>
+
+### **Section 2: Importing Data, Data Cleanup and Summary Statistics**
+
+#### 2.1   Importing Relevant Packages
+```{r}
+# install.packages("patchwork")
+# install.packages("viridis")
+
+library(readxl)
+library(lubridate)
+library(stringr)
+library(tidyverse)
+library(patchwork)
+library(viridis)
+```
+
+#### 2.2   Importing in TidyTuesday Data
+```{r}
+qname_levels_single_response_crosswalk <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/qname_levels_single_response_crosswalk.csv')
+
+stackoverflow_survey_questions <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/stackoverflow_survey_questions.csv')
+
+stackoverflow_survey_single_response <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2024/2024-09-03/stackoverflow_survey_single_response.csv')
+```
+
+#### 2.3   Data Cleaning and Summary of Final Data
+
+Before visualising our results, we outline our criteria for what constitutes a **"professional"** developer. The responses of the  `main_branch` variable were obtained from the question "*Which of the following options best describes you today?*", asked in the survey. `main_branch` is a factor variable and consists of 5 levels, one for each of the following responses; our renamed levels are written in brackets:
+<br>
+
+- I am a developer by profession. (Pro Developer)
+- I used to be a developer by profession, but no longer am (Previous Developer)
+- I am not primarily a developer, but I write code sometimes as part of my work / studies. (Occasional Coder)
+- I am learning to code (Beginner)
+- I code primarily as a hobby (Hobbyist)
+<br>
+
+For the purposes of our analysis, we consider the first two levels  **professional** developers since they are currently working as, or have had experience working as a developer. We consider the other three levels **non-professional** since they do not have the required experience of being in the industry. Admittedly, some of the data still seem a bit questionable. For example, the very first response shows a developer below 18 years of age, with no coding experience and only a primary school education (shown in the second code chunk). For simplicity, however, we decided to take such responses at face value and include them in our analysis. Additionally, since we are also considering developers' perceptions of how much of a threat AI is to their jobs (displayed by the `ai_threat` variable), we will also subset our data to only include data from respondents that answered this question by using the `drop_na` function. The list below shows what question from the original survey each of the variables we are analysing corresponds to:
+<br>
+
+- `years_code`: *Including any education, how many years have you been coding in total?*
+- `ed_level`: *Which of the following best describes the highest level of formal education that you’ve completed?*
+- `ai_threat`: *Do you believe AI is a threat to your current job?*
+
+```{r}
+## DATA CLEANUP (SHORTENING FACTOR VARIABLES)
+
+data<-stackoverflow_survey_single_response %>% 
+  select(main_branch, age, ed_level, years_code, years_code_pro, ai_threat) %>%
+  mutate(years_code = replace_na(years_code, 0), years_code_pro = replace_na(years_code_pro, 0)) %>%
+  drop_na() %>%
+  mutate(main_branch = as.factor(main_branch), ed_level = as.factor(ed_level)) %>%
+  mutate(main_branch = case_when(main_branch == 1 ~ "Pro developer",
+                                 main_branch == 2 ~ "Beginner",
+                                 main_branch == 3 ~ "Occasional coder",
+                                 main_branch == 4 ~ "Hobbyist",
+                                 main_branch == 5 ~ "Previous developer"),
+         ed_level = case_when(ed_level == 1 ~ "Associate degree", 
+                              ed_level == 2 ~ "Bachelor’s degree", 
+                              ed_level == 3 ~ "Master's degree", 
+                              ed_level == 4 ~ "Primary school", 
+                              ed_level == 5 ~ "Professional degree", 
+                              ed_level == 6 ~ "Secondary school", 
+                              ed_level == 7 ~ "Secondary school", 
+                              ed_level == 8 ~ "Others"), 
+         ai_threat = case_when(ai_threat == 1 ~ "Unsure",
+                               ai_threat == 2 ~ "No",
+                               ai_threat == 3 ~ "Yes")) %>%
+  mutate(ed_level = factor(ed_level, levels = c("Others", "Primary school", "Secondary school", "Associate degree", 
+                                             "Bachelor’s degree", "Master's degree", "Professional degree")), 
+         ai_threat = factor(ai_threat, levels = c("No","Yes","Unsure"))) %>%
+  mutate(years_code=as.numeric(years_code), years_code_pro=as.numeric(years_code_pro), age=case_when(age==1~24, 
+                                                         age==2~34,
+                                                         age==3~44,
+                                                         age==4~54,
+                                                         age==5~64,
+                                                         age==6~100,
+                                                         age==7~100,
+                                                         age==8~18)) %>%
+  mutate(diff_in_years_age_code=age-years_code,
+         diff_in_years_code_procode=years_code-years_code_pro) 
+
+```
+
+```{r}
+## ABNORMAL FIRST RESPONSE
+first_response <- stackoverflow_survey_single_response %>%
+  select(response_id, main_branch, ed_level, years_code) %>%
+  mutate(main_branch = case_when(main_branch == 1 ~ "Pro Developer"),
+         ed_level = case_when(ed_level == 4 ~ "Primary School")) %>%
+  slice(1)
+
+first_response
+```
+
+To clean the data and remove anomalous readings more easily, we decided to convert the categorical ranges of the `age` variable in the dataset to the maximum of each category (e.g. 25 - 34 years old is now coded as 34). For respondents above 65 years old and for those that declined to give their age, we coded their age as 100. In our preliminary analysis of the dataset, we conducted 2 checks (seen in the code chunks below) and we noticed certain anomalies in some of the responses that may compromise the integrity of the dataset and affect our graph results. The dataset contains two different variables for the number of years the person has coded: `years_code` represents the **total** number of years the person has written code (professionally or not), while `years_code_pro` represents **only** the years the person has coded professionally. `years_code_pro` is thus meant to be a subset of `years_code`. We noticed, however, that **443** responses have `years_code_pro` > `years_code`, and so we decided to `filter` out those columns from our dataset. Likewise, in our analysis of the `age` variable, we found **11** instances where respondents have a higher `years_code` number than their `age` (shown in Figure 1 below), which does not make much sense. We decided to `filter` out such data from our analysis as well.
+
+```{r}
+
+## CHECK 1: CHECKS FOR ROWS WHERE years_pro_code > years_code
+check_years_code <- data %>%
+  filter(diff_in_years_code_procode < 0) %>%
+  select(years_code, years_code_pro, diff_in_years_code_procode)
+
+check_years_code  # 443 instances
+
+## CHECK 2: CHECK FOR ROWS WHERE years_code > age
+check_age <- data %>%
+  filter(diff_in_years_age_code < 0) %>%
+  select(age, years_code, diff_in_years_age_code)
+
+check_age  # 11 instances
+```
+
+```{r}
+## REMOVE ROWS THAT FAIL THE ABOVE CHECKS
+## (remove instances where years_code > age and years_pro_code > years_code)
+
+data <- data %>%
+  filter(diff_in_years_age_code >= 0, diff_in_years_code_procode >= 0)
+data
+```
+
+<br>
+
+### **Section 3: Graph Plotting**
+We decided to use colourblind-friendly colours from the **`viridis`** package in our plots for increased accessibility. 
+
+### Plot 1: Professional vs. Non-Professional Years of Coding
+
+This plot explores the `years_code` variable and the `main_branch` variable and aims to see if the number of years a person has coded for affects their level of professionalism as a developer. We believe a **box plot** is ideal to display this relationship as it showcases the distribution of `years_code`, along with the median, interquartile range and any outliers. Thus, we can better compare the distributions of `years_code` between the different levels of `main_branch` to help answer our question. As we mentioned in the **Summary** portion of **Section 2**, there are two variables that display a person's coding level, `years_code` and `years_code_pro`. We decided that we will only look into `years_code` for our analysis, as the question for `years_code_pro` was only answered by **Occasional Coders** and **Professional Developers**. Thus, we are not able to meaningfully draw a conclusion for how a person's number of years coding professionally affects one's professionalism level. As such, the `years_code_pro` variable was only used in our analysis to check for anomalous responses (more details outlined in **Section 2.3**).
+
+```{r}
+ggplot(data, aes(x = main_branch, y = years_code, fill=main_branch)) +
+     geom_boxplot(color = "black") +
+  scale_fill_manual(values = viridis(7, option = "C", direction = -1)[c(3,4,5,6,8)])+
+     labs(x = "Professionalism Level",
+          y = "Years of Coding", title= "Years of Coding Experience by Professionalism Level") +
+     theme_minimal(base_size = 15) +
+     theme(plot.title = element_text(hjust = 0.5, face = "bold", size=17),
+           axis.text.x = element_text(angle = 45, hjust = 1),
+           axis.title.x = element_text(face = "bold"),
+           axis.title.y = element_text(face = "bold"),
+           legend.position="none",)
+```
+
+### Plot 2: Professional vs. Non-Professional Highest Education Level Attained
+
+This plot explores the `ed_level` variable against the `main_branch` variable and aims to see if one's education level factors in to whether they are a professional developer or not. We believe a **heatmap** is ideal for exploring the relationship between these two variables as it allows us to visualise the percentage breakdowns of each person's highest education level across the different levels of professionalism identified in `main_branch`.
+
+```{r}
+data2 <- data %>%
+  group_by(main_branch) %>%
+  count(ed_level) %>%
+  mutate(prob = round(n * 100/sum(n), 2))
+
+ggplot(data2, aes(x = main_branch, y = ed_level, fill = prob)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(option = "viridis", direction = -1) +
+  geom_text(data = data2, aes(label = str_c(prob, "%"), color = ifelse(prob > 25, "white", "black"))) +
+  labs(y = "Education Level", x = "Professionalism Level", 
+       title = "Heatmap of Highest Education Level Attained Against Developer Type", 
+       caption = "*Note: each vertical column sums up to 100%",
+       fill = "proportion") +
+  guides(color = "none")+
+  scale_color_manual(values = c("black" = "black", "white" = "white")) +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
+        axis.text.x = element_text(angle = 45, hjust = 1), 
+        plot.caption = element_text(hjust = 1, size = 8), 
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        plot.margin = unit(c(0.5, 3.5, 0.5, 0.5), "cm"))
+```
+
+### Plot 3: Professional vs. Non-Professional Views on AI as a Threat to Jobs
+
+This plot explores the `ai_threat` variable against the `main_branch` variable and aims to see if one's perspective on if AI is a threat to one's jobs determines whether they are a developer or not. Participants were asked to choose one of three responses (Yes, No, or Unsure) to the question on `ai_threat`. We believe a **barplot** with the positions of bars (correlating to each response) dodged will help us visualise the proportions of developers who believe, do not believe, or are unsure of if AI is a threat to their jobs across the different levels of professionalism identified in the `main_branch` variable. We decided to explore the **proportion** of people that responded for each `main_branch` instead of the absolute value as a signficant number of respondents to this question were **Pro Developers**. Thus, using absolute values may shrink the other `main_branch` level bar heights, making comparisons between the bars trivial and difficult to infer from.
+
+```{r}
+data3 <- data %>%
+  count(main_branch, ai_threat) %>%
+  group_by(main_branch) %>%
+  mutate(prop = n / sum(n)) %>%
+  ungroup()
+
+ggplot(data3) +
+  geom_col(aes(x = main_branch, y = prop, fill = ai_threat), position = "dodge") +
+  scale_fill_viridis(discrete = TRUE, option="H", direction=-1)+
+  labs(title="Barplot of Developers to Whether AI is a Threat to Their Current Job",
+       y = "Proportion", fill = "AI Threat", x = "Professionalism Level")+
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+        axis.text.x = element_text(angle = 45, vjust=0.5),
+        axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        plot.margin = unit(c(0.5, 1, 0.5, 2.75), "cm"))
+```
+
+<br>
+
+### **Section 4: Discussion**
+**Plot 1: Coding Experience and Developer Professionalism**
+
+The box plot shows a **strong relationship** between the **developer professionalism level** and their **coding experience**. **Professional developers** (both former and current) generally possess a significantly higher median of coding experience (~20 and ~12 years respectively), coupled with a higher interquartile range. This extensive range not only highlights the depth and longevity of engagement required in professional coding careers, but also showcases the progressive accumulation of expertise the industry demands that is typically absent in non-professional groups. In contrast, the **non-professional** categories (beginners, hobbyists, occasional coders) generally show a **lower median** (~2, ~5 and ~8 respectively) and a **narrower interquartile spread** centered around fewer years of coding. The data underscores that the defining attributes of professional developers are not merely the greater years of experience but also the sustained nature of this engagement compared to their non-professional counterparts. This agrees with professional industry standards of developers (Bahrehvar and Moshirpour, 2022). **We thus conclude that years of coding does indeed play a role in distinguishing developers from non-developers.** The data set also contains some unusual outliers, particularly in the beginner and hobbyist box plots. There are quite a few individuals that possess significant coding experience (some >50 years!), but still remain as Beginners. These thus display the unreliability and inconsistency of crowd-sourced data. Nonetheless, such large outliers also display why using the median in each of our box plots may be a better representation of data as these outliers would inflate the mean during plotting.  
+<br>
+
+**Plot 2: Educational Backgrounds and Developer Professionalism**
+
+The heatmap offers insightful correlations between individuals' **educational backgrounds** and their **developer status**. **Current Professional developers** predominantly possess **higher education levels**, with a significant majority holding a **Bachelor's Degree (46.19%)** or **Master's Degree (28.14%)** as their highest education level. This suggests that formal education is crucial in professional coding roles. In contrast, **non-professionals** such as hobbyists and occasional coders typically have **lower education levels** with **25.03%** of occasional coders only finishing **Secondary School**. Meanwhile, **previous developers** display **a range of educational backgrounds**, with a notable portion achieving higher educational credentials. This may suggest that the barrier to entry into coding may be diverse. The above insights highlight the importance of **formal education** as a **distinguishing factor** between **professional and non-professional developers**. Advanced education is thus often aligned with the technical demands of professional development work (Verma et al., 2022).  
+<br>
+
+**Plot 3: Perception of AI as a Job Threat among Developers**
+
+The **barplot** reveals that a **greater proportion of professional developers** (both active and retired), **do not view AI as a threat to their jobs**, as opposed to **non-professional** groups (beginners and hobbyists). This is observed by the smaller bar height for non-professionals who responded "Yes" compared to professionals. This can be attributed to the professionals' confidence in the **complexity and specialised nature of their skills**, which they believe may not be easily replaced by AI technologies. This ensures that their roles remain secure for the foreseeable future. On the other hand, a notiable portion of the **non-professional** groups (with the exception of occassional coders), either **do NOT** perceive AI as a threat or are **uncertain** about its impact. For many in these groups, the threat posed by AI may seem irrelevant, as their primary occupation may not require as much programming knowledge or skills. Overall, the data suggests that despite the rapid advancement of AI (Kondam and Yella, 2023), professionals seem more confident that it will not surpass their expertise in the foreseeable future. This agrees well with other conclusions supported by other authors (Eng and Liu, 2024). However, because of the close proportions in the bar plots, we conclude that **perceptions of AI threats to jobs may not be the best factor distinguishing developers from non-developers**.  
+<br>
+
+**Summary of Key Insights**
+
+The data suggests that two main factors differentiate professional developers from non-professionals: **coding experience** and **education level**. While education is  particularly significant when an individual holds a bachelor's or master's degree in determining whether one is professional or not, the levels of educational attainment vary widely. Notably, an average of 20.5% of professional developers lack any degree, whereas an average of a substantial 41.8% of non-professionals hold at least a bachelor's degree. Hence, years of coding experience appear to be a more decisive factor as there is a strong correlation between increased coding experience and the likelihood of becoming a professional developer. This may indicate that companies tend to prioritise coding experience over educational background when hiring developers.
+
+<br>
+
+### **Teamwork**
+The following detail the contributions made by each team member:
+<br>
+
+- **Peng Kerng**: Data Cleanup, Generation of Plots 1, 2, 3
+- **Jaye**: Data Cleanup Writeup, Summary Statistics Writeup, Formating and CSS
+- **Rachel**: Introduction, Plots 1, 2, 3 Writeup, Discussion
+- **Caleb**: Introduction, Plots 1, 2, 3 Writeup, Discussion
+- **Kangze**: Data Cleanup, Generation of Plots 1, 2, 3
+
+<br>
+
+### **References**
+Bahrehvar, M., & Moshirpour, M. (2022). Full-stack development and soft skills: An agile-based learning framework. *Proceedings of the Canadian Engineering Education Association (CEEA)*. DOI:https://doi.org/10.24908/pceea.vi.15844
+
+<br>
+
+Berkay, A. (2024). *Stack Overflow Annual Developer Survey 2024*. Kaggle. Retrieved November 15, 2024, https://www.kaggle.com/datasets/berkayalan/stack-overflow-annual-developer-survey-2024
+
+<br>
+
+Eng, P. H., & Liu, R. L. (2024). Will Intelligent Technologies Replace Humans in the Future? An Exploratory Study for Likelihood of Intelligent Technologies to Replace Humans in the Future. In *Current and Future Trends on Intelligent Technology Adoption*: *Volume 2* (pp. 171-202). Cham: Springer Nature Switzerland. DOI:https://doi.org/10.1007/978-3-031-61463-7_9
+
+<br>
+
+Khurana, H., Harmon, J. (2024). *Stack Overflow Annual Developer Survey 2024*. Github. Retrieved November 15, 2024, https://github.com/rfordatascience/tidytuesday/blob/master/data/2024/2024-09-03/readme.md
+
+<br>
+
+Kondam, A., & Yella, A. (2023). Advancements in Artificial Intelligence: Shaping the Future of Technology and Society. *Advances in Computer Sciences*, *6*(1).
+
+<br>
+
+Verma, A., Lamsal, K., & Verma, P. (2022). An investigation of skill requirements in artificial intelligence and machine learning job advertisements. Industry and Higher Education, 36(1), 63-73.
